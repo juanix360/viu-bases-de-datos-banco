@@ -5,18 +5,10 @@
 -- AUTOR: Juan David Ortiz Encarnación
 -- SCRIPT: Creación de Esquema, Inserción y Consultas SQL para PostgreSQL / pgAdmin
 -- =============================================================================
-
--- INSTRUCCIÓN PARA pgADMIN:
--- 1. Abre pgAdmin y conéctate a tu servidor PostgreSQL.
--- 2. Crea una base de datos llamada 'banco_sistema' (o usa la base de datos por defecto 'postgres').
--- 3. Abre la herramienta de consulta (Tools > Query Tool) sobre dicha base de datos.
--- 4. Pega y ejecuta este script completo (F5).
-
--- =============================================================================
 -- 1. DDL: LIMPIEZA PREVIA Y CREACIÓN DE TIPOS / TABLAS
 -- =============================================================================
 
--- Eliminación ordenada de tablas previas (con CASCADE para evitar conflictos de FKs)
+
 DROP TABLE IF EXISTS pago CASCADE;
 DROP TABLE IF EXISTS cliente_prestamo CASCADE;
 DROP TABLE IF EXISTS prestamo CASCADE;
@@ -31,7 +23,7 @@ DROP TABLE IF EXISTS sucursal CASCADE;
 DROP TYPE IF EXISTS tipo_cuenta_enum CASCADE;
 DROP VIEW IF EXISTS vista_empleado CASCADE;
 
--- Tipo Enumerado nativo de PostgreSQL para los tipos de cuenta
+
 CREATE TYPE tipo_cuenta_enum AS ENUM ('AHORRO', 'CORRIENTE');
 
 -- -----------------------------------------------------------------------------
@@ -47,7 +39,6 @@ CREATE TABLE sucursal (
 
 -- -----------------------------------------------------------------------------
 -- Tabla 2: EMPLEADO
--- Relación reflexiva (id_jefe) para la jerarquía de supervisión.
 -- -----------------------------------------------------------------------------
 CREATE TABLE empleado (
     id_empleado INT NOT NULL,
@@ -62,9 +53,6 @@ CREATE TABLE empleado (
         ON UPDATE CASCADE
 );
 
--- En PostgreSQL, los campos calculados dinámicamente dependientes de la fecha actual 
--- (CURRENT_DATE) se encapsulan formalmente mediante una VISTA para respetar la 1FN
--- sin almacenar redundancias en disco:
 CREATE OR REPLACE VIEW vista_empleado AS
 SELECT 
     id_empleado,
@@ -77,7 +65,6 @@ FROM empleado;
 
 -- -----------------------------------------------------------------------------
 -- Tabla 3: DEPENDIENTE (Entidad débil de EMPLEADO)
--- PK compuesta: (id_empleado, nombre_dependiente)
 -- -----------------------------------------------------------------------------
 CREATE TABLE dependiente (
     id_empleado INT NOT NULL,
@@ -92,7 +79,6 @@ CREATE TABLE dependiente (
 
 -- -----------------------------------------------------------------------------
 -- Tabla 4: CLIENTE
--- Relación N:1 con Empleado (Asesor Personal)
 -- -----------------------------------------------------------------------------
 CREATE TABLE cliente (
     id_cliente INT NOT NULL,
@@ -147,7 +133,6 @@ CREATE TABLE cuenta_corriente (
 
 -- -----------------------------------------------------------------------------
 -- Tabla 8: CLIENTE_CUENTA (Relación N:M entre Cliente y Cuenta)
--- Atributo propio: fecha_ultimo_acceso
 -- -----------------------------------------------------------------------------
 CREATE TABLE cliente_cuenta (
     id_cliente INT NOT NULL,
@@ -181,7 +166,6 @@ CREATE TABLE prestamo (
 
 -- -----------------------------------------------------------------------------
 -- Tabla 10: CLIENTE_PRESTAMO (Relación N:M entre Cliente y Préstamo)
--- Admite cotitularidades
 -- -----------------------------------------------------------------------------
 CREATE TABLE cliente_prestamo (
     id_cliente INT NOT NULL,
@@ -199,7 +183,6 @@ CREATE TABLE cliente_prestamo (
 
 -- -----------------------------------------------------------------------------
 -- Tabla 11: PAGO (Entidad débil de PRESTAMO)
--- PK compuesta: (id_prestamo, numero_pago)
 -- -----------------------------------------------------------------------------
 CREATE TABLE pago (
     id_prestamo INT NOT NULL,
@@ -314,7 +297,7 @@ INSERT INTO pago (id_prestamo, numero_pago, fecha_pago, importe) VALUES
 -- =============================================================================
 
 SELECT * FROM sucursal;
-SELECT * FROM vista_empleado; -- Vista con la antigüedad calculada
+SELECT * FROM vista_empleado; 
 SELECT * FROM dependiente;
 SELECT * FROM cliente;
 SELECT * FROM cuenta;
@@ -332,7 +315,6 @@ SELECT * FROM pago;
 
 -- -----------------------------------------------------------------------------
 -- CONSULTA 1: INTERSECCIÓN NATIVA CON EL OPERADOR INTERSECT
--- Obtiene los clientes que tienen tanto una cuenta como un préstamo concedido.
 -- -----------------------------------------------------------------------------
 SELECT c.id_cliente, c.nombre, c.ciudad
 FROM cliente c
@@ -347,7 +329,6 @@ INNER JOIN cliente_prestamo cp ON c.id_cliente = cp.id_cliente;
 
 -- -----------------------------------------------------------------------------
 -- CONSULTA 2: INTERSECCIÓN MULTITABLA CON INNER JOIN (Cruce total)
--- Muestra el detalle completo del cruce: Cliente, su cuenta y su préstamo.
 -- -----------------------------------------------------------------------------
 SELECT 
     c.id_cliente,
@@ -368,7 +349,6 @@ ORDER BY c.id_cliente, cu.id_cuenta;
 
 -- -----------------------------------------------------------------------------
 -- CONSULTA 3: INTERSECCIÓN DE ESPECIALIZACIONES ISA
--- Clientes que tienen simultáneamente al menos una Cuenta de Ahorro y una Corriente.
 -- -----------------------------------------------------------------------------
 SELECT c.id_cliente, c.nombre
 FROM cliente c
@@ -382,34 +362,4 @@ FROM cliente c
 INNER JOIN cliente_cuenta cc ON c.id_cliente = cc.id_cliente
 INNER JOIN cuenta_corriente cco ON cc.id_cuenta = cco.id_cuenta;
 
-
--- =============================================================================
--- 5. DML: OPERACIONES CRUD COMPLETAS (Update y Delete demostrativos)
--- =============================================================================
-
--- [U - UPDATE 1]: Actualización de saldo tras un depósito bancario
-UPDATE cuenta 
-SET saldo = saldo + 1500.00 
-WHERE id_cuenta = 1001;
-
--- [U - UPDATE 2]: Reasignación de asesor personal a un cliente
-UPDATE cliente 
-SET id_empleado_asesor = 104 
-WHERE id_cliente = 6;
-
--- [D - DELETE 1]: Cancelación/eliminación de un pago puntual
-DELETE FROM pago 
-WHERE id_prestamo = 201 AND numero_pago = 3;
-
--- [D - DELETE 2]: Demostración de Integridad Referencial con ON DELETE CASCADE
--- Al eliminar el préstamo 204, se eliminan automáticamente sus cotitulares en 
--- cliente_prestamo y sus pagos asociados en pago, sin dejar registros huérfanos.
-DELETE FROM prestamo 
-WHERE id_prestamo = 204;
-
--- Comprobación final tras operaciones de actualización y borrado:
-SELECT id_cuenta, saldo FROM cuenta WHERE id_cuenta = 1001;
-SELECT id_cliente, nombre, id_empleado_asesor FROM cliente WHERE id_cliente = 6;
-SELECT * FROM pago WHERE id_prestamo = 201;
-SELECT * FROM prestamo WHERE id_prestamo = 204;
 
