@@ -1,0 +1,4 @@
+# Ignorar archivos pesados y manuales de la universidad
+*.pdf
+*.pptx
+*.tmp
